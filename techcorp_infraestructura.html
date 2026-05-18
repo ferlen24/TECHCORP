@@ -1,0 +1,639 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>TECHCORP INFRA ARCADE</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.44.0/tabler-icons.min.css">
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&family=VT323&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="techcorp_infraestructura.css">
+</head>
+<body>
+<div id="game">
+
+  <div id="toast">POWER UP!</div>
+
+  <!-- WELCOME -->
+  <div class="screen active" id="s-welcome">
+    <div class="hero">
+      <div class="hero-arcade">🕹️</div>
+      <p class="insert-coin">▶ INSERT COIN ◀</p>
+      <h1>TECHCORP<br>INFRA ARCADE</h1>
+      <p>Eres el nuevo <strong>SYSADMIN</strong> de TechCorp S.A. La sede está vacía. Comprá servidores, armá la red y completá las 6 misiones.</p>
+      <div class="name-form">
+        <label class="name-label" for="player-name">TU NOMBRE</label>
+        <input class="name-input" type="text" id="player-name" maxlength="40" placeholder="Ej: María" autocomplete="name">
+      </div>
+      <div class="hero-actions">
+        <button class="btn-primary" onclick="startGame()">
+          <i class="ti ti-player-play"></i> JUGAR
+        </button>
+        <button class="btn-secondary" onclick="showScreen('s-info')">
+          <i class="ti ti-book"></i> MANUAL
+        </button>
+      </div>
+      <p class="diploma-brand">Infraestructura Tecnológica —  Diplomatura en Auditoría de Sistemas de Información y Gestión de Ciberseguridad -by Fer Lencina -</p>
+    </div>
+  </div>
+
+  <!-- INFO -->
+  <div class="screen" id="s-info">
+    <div class="header">
+      <h2><i class="ti ti-book"></i> MANUAL</h2>
+      <button class="btn-secondary" onclick="showScreen('s-welcome')">← Volver</button>
+    </div>
+    <div id="info-content"></div>
+  </div>
+
+  <!-- HUB -->
+  <div class="screen" id="s-hub">
+    <div class="header">
+      <h2>TECHCORP HQ</h2>
+      <div class="hud">
+        <span class="hud-pill hud-xp"  id="hud-xp">SCORE 0</span>
+        <span class="hud-pill hud-mis" id="hud-mis">STAGE 0/6</span>
+      </div>
+    </div>
+    <div class="tabs">
+      <button class="tab-btn active" onclick="switchTab('shop')"><i class="ti ti-shopping-cart"></i> SHOP</button>
+      <button class="tab-btn"        onclick="switchTab('network')"><i class="ti ti-topology-star"></i> RED</button>
+      <button class="tab-btn"        onclick="switchTab('missions')"><i class="ti ti-list-check"></i> STAGE</button>
+    </div>
+    <div id="tab-shop"></div>
+    <div id="tab-network" hidden></div>
+    <div id="tab-missions" hidden></div>
+  </div>
+
+  <!-- VICTORY -->
+  <div class="screen" id="s-victory">
+    <div class="victory-wrap" id="victory-content"></div>
+  </div>
+
+  <!-- PUZZLE -->
+  <div class="screen" id="s-puzzle">
+    <div class="header">
+      <h2 id="puzzle-title">Misión</h2>
+      <button class="btn-secondary" onclick="showScreen('s-hub');updateHUD();renderMissions()">← Hub</button>
+    </div>
+    <div class="puzzle-wrap">
+      <div id="puzzle-body"></div>
+    </div>
+  </div>
+
+</div>
+
+<canvas id="cert-canvas" width="900" height="1200" hidden aria-hidden="true"></canvas>
+
+<script>
+const DIPLOMA_BRAND = 'Infraestructura Tecnológica — Diplomatura en Auditoría de Sistemas de Información y Gestión de Ciberseguridad';
+const SYSADMIN_DEF = 'Administrador de Sistemas: profesional encargado de garantizar el correcto funcionamiento, la disponibilidad y la seguridad de la infraestructura tecnológica de una empresa.';
+
+const SERVERS = [
+  { id:'file',    name:'File Server',            cat:'Datos & Archivos', icon:'🗄️',  cost:800,  desc:'Almacena y comparte documentos, carpetas y archivos entre usuarios.' },
+  { id:'db',      name:'Database Server',         cat:'Datos & Archivos', icon:'🛢️',  cost:1200, desc:'Gestiona bases de datos relacionales para apps y sistemas.' },
+  { id:'web',     name:'Web Server',              cat:'Web & Apps',       icon:'🌐',  cost:700,  desc:'Sirve páginas web e interfaces a los navegadores.' },
+  { id:'app',     name:'Application Server',      cat:'Web & Apps',       icon:'⚙️',  cost:900,  desc:'Ejecuta la lógica de negocio de las aplicaciones.' },
+  { id:'auth',    name:'Auth Server (LDAP/AD)',   cat:'Identidad',        icon:'🔐',  cost:1000, desc:'Gestiona usuarios, contraseñas y permisos de acceso.' },
+  { id:'mail',    name:'Mail Server',             cat:'Comunicación',     icon:'📧',  cost:600,  desc:'Envía, recibe y almacena correos electrónicos.' },
+  { id:'dns',     name:'DNS Server',              cat:'Comunicación',     icon:'🗺️',  cost:400,  desc:'Traduce nombres de dominio en direcciones IP.' },
+  { id:'backup',  name:'Backup Server',           cat:'Seguridad',        icon:'💾',  cost:500,  desc:'Realiza copias de seguridad automáticas de todos los datos.' },
+  { id:'monitor', name:'Monitoring Server',       cat:'Seguridad',        icon:'📊',  cost:550,  desc:'Vigila el estado y rendimiento de toda la infraestructura.' },
+  { id:'video',   name:'Video Server / NVR',      cat:'Vigilancia',       icon:'📹',  cost:650,  desc:'Graba y gestiona las cámaras de seguridad del edificio.' },
+  { id:'virtual', name:'Virtual Server',          cat:'Virtualización',   icon:'🖥️',  cost:1500, desc:'Permite correr múltiples servidores virtuales en un solo hardware.' },
+];
+
+const MISSIONS = [
+  {
+    id:'login', title:'Iniciar sesión en una PC', xp:150, icon:'💻',
+    needs:['dns','auth'],
+    steps:[
+      { q:'Un empleado enciende su PC y escribe su usuario y contraseña. ¿Qué servidor verifica primero que el nombre de equipo "PC-001" existe en la red?', opts:['DNS Server','File Server','Mail Server','Backup Server'], ans:0, exp:'El DNS Server resuelve nombres de equipos a direcciones IP antes de cualquier otra comunicación en la red.' },
+      { q:'Después de resolver el nombre, ¿qué servidor valida el usuario y contraseña del empleado?', opts:['Web Server','Auth Server (LDAP/AD)','Database Server','Monitor Server'], ans:1, exp:'El Auth Server (directorio LDAP/Active Directory) almacena las credenciales y decide si el acceso es correcto.' },
+      { q:'¿Qué ocurriría si el Auth Server estuviera apagado?', opts:['Los usuarios no podrían ver páginas web','Nadie podría iniciar sesión en ninguna PC de la empresa','Solo fallarían los correos','El DNS dejaría de funcionar'], ans:1, exp:'Sin el Auth Server, el directorio no puede validar credenciales: todos los logins quedan bloqueados.' }
+    ]
+  },
+  {
+    id:'email', title:'Enviar un correo interno', xp:120, icon:'📧',
+    needs:['dns','auth','mail'],
+    steps:[
+      { q:'Ana quiere enviar un correo a su colega Juan. ¿Qué servidor se encarga de entregar ese mensaje?', opts:['Web Server','File Server','Mail Server','Virtual Server'], ans:2, exp:'El Mail Server gestiona el envío, recepción y almacenamiento de correos electrónicos.' },
+      { q:'Antes de entregar el correo, el Mail Server necesita saber la dirección IP del servidor de destino. ¿A quién consulta?', opts:['Backup Server','DNS Server','Auth Server','Database Server'], ans:1, exp:'El DNS Server resuelve el dominio del destinatario (ej: techcorp.local) para saber a qué IP entregar el mail.' },
+      { q:'Si Ana manda un correo confidencial, ¿qué servidor garantiza que solo ella y Juan puedan acceder a sus buzones?', opts:['Auth Server','Video Server','Monitor Server','File Server'], ans:0, exp:'El Auth Server controla quién puede autenticarse en el sistema de correo.' }
+    ]
+  },
+  {
+    id:'web', title:'Acceder a la intranet', xp:130, icon:'🌐',
+    needs:['dns','auth','web','app'],
+    steps:[
+      { q:'Un empleado abre el navegador y escribe "intranet.techcorp.local". ¿Qué servidor convierte ese nombre en una IP?', opts:['App Server','DNS Server','File Server','Mail Server'], ans:1, exp:'El DNS traduce el nombre legible "intranet.techcorp.local" a la IP real del servidor web.' },
+      { q:'El navegador ya tiene la IP. ¿Qué servidor le devuelve la página HTML de la intranet?', opts:['Database Server','Web Server','Backup Server','Auth Server'], ans:1, exp:'El Web Server sirve los archivos HTML, CSS e imágenes al navegador.' },
+      { q:'La intranet muestra datos del sistema de RRHH. ¿Qué servidor procesa la lógica de negocio y consulta la base de datos?', opts:['Mail Server','DNS Server','Application Server','File Server'], ans:2, exp:'El Application Server ejecuta la lógica de negocio y actúa como intermediario entre el frontend y la base de datos.' }
+    ]
+  },
+  {
+    id:'files', title:'Guardar un archivo compartido', xp:100, icon:'📁',
+    needs:['dns','auth','file'],
+    steps:[
+      { q:'Carlos quiere guardar un informe en la carpeta compartida de su equipo. ¿Qué servidor almacena esos archivos?', opts:['File Server','Mail Server','DNS Server','Monitor Server'], ans:0, exp:'El File Server almacena y comparte carpetas y documentos entre los usuarios de la organización.' },
+      { q:'¿Qué servidor garantiza que solo los miembros del equipo de Carlos puedan ver esa carpeta?', opts:['Web Server','Backup Server','Auth Server','Video Server'], ans:2, exp:'El Auth Server gestiona los permisos de acceso a las carpetas compartidas del File Server.' },
+      { q:'Si el disco del File Server falla, ¿qué servidor permite recuperar los archivos?', opts:['DNS Server','Monitor Server','Backup Server','App Server'], ans:2, exp:'El Backup Server mantiene copias de seguridad y permite recuperar datos ante fallos.' }
+    ]
+  },
+  {
+    id:'monitor', title:'Detectar una caída de servidor', xp:140, icon:'📊',
+    needs:['monitor','backup'],
+    steps:[
+      { q:'A las 3 AM el Database Server se cae. ¿Qué servidor detecta el problema y alerta al equipo?', opts:['File Server','Monitor Server','DNS Server','Mail Server'], ans:1, exp:'El Monitoring Server vigila 24/7 el estado de todos los sistemas y genera alertas automáticas.' },
+      { q:'El disco del DB Server está corrupto. Para restaurar los datos, el sysadmin accede a...', opts:['Web Server','Video Server','Backup Server','App Server'], ans:2, exp:'El Backup Server guarda copias periódicas de todos los datos para situaciones de recuperación.' },
+      { q:'¿Cuál es la función del Backup Server respecto al Monitoring Server?', opts:['Son el mismo servidor','Uno vigila, el otro guarda copias para recuperar','El backup monitorea y el monitor hace backups','No tienen relación'], ans:1, exp:'Son complementarios: el Monitoring detecta problemas y el Backup permite recuperarse de ellos.' }
+    ]
+  },
+  {
+    id:'security', title:'Integrar videocámaras y virtualización', xp:160, icon:'🎥',
+    needs:['video','virtual','monitor'],
+    steps:[
+      { q:'La empresa instala cámaras en pasillos. ¿Qué servidor graba y gestiona el video de vigilancia?', opts:['File Server','Web Server','Video Server / NVR','Database Server'], ans:2, exp:'El Video Server / NVR (Network Video Recorder) captura y almacena el video de las cámaras IP.' },
+      { q:'Para no comprar hardware físico para cada servicio nuevo, la empresa virtualiza. ¿Qué servidor permite crear múltiples servidores virtuales en un solo equipo físico?', opts:['Backup Server','Virtual Server','Mail Server','DNS Server'], ans:1, exp:'El Virtual Server (hipervisor) permite crear y administrar múltiples máquinas virtuales sobre un único hardware.' },
+      { q:'¿Cómo ayuda el Monitoring Server al entorno virtualizado?', opts:['Hace backup de las VMs','Virtualiza los backups','Vigila el rendimiento de cada VM y alerta si alguna consume demasiados recursos','Gestiona los usuarios de las VMs'], ans:2, exp:'El Monitoring supervisa CPU, RAM y red de cada VM, alertando ante cuellos de botella o caídas.' }
+    ]
+  }
+];
+
+let state = { playerName: '', budget: 8000, owned: [], xp: 0, missionsDone: [], activeTab: 'shop', startTime: null, completedAt: null, gameEndReason: null };
+let currentMission = null, currentStep = 0, stepAnswered = false;
+
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+}
+
+function startGame() {
+  const name = document.getElementById('player-name').value.trim();
+  if (!name) { toast('INGRESÁ TU NOMBRE'); document.getElementById('player-name').focus(); return; }
+  state.playerName = name;
+  if (!state.startTime) state.startTime = Date.now();
+  showScreen('s-hub');
+  renderAll();
+}
+
+function formatElapsed(ms) {
+  const totalSec = Math.floor(ms / 1000);
+  const h = Math.floor(totalSec / 3600);
+  const m = Math.floor((totalSec % 3600) / 60);
+  const s = totalSec % 60;
+  if (h > 0) return `${h}h ${String(m).padStart(2,'0')}m ${String(s).padStart(2,'0')}s`;
+  return `${m}m ${String(s).padStart(2,'0')}s`;
+}
+
+function allMissionsComplete() {
+  return state.missionsDone.length === MISSIONS.length;
+}
+
+function getElapsedMs() {
+  const end = state.completedAt || Date.now();
+  return state.startTime ? end - state.startTime : 0;
+}
+
+function isGameEnded() {
+  return state.gameEndReason !== null;
+}
+
+function getPendingMissions() {
+  return MISSIONS.filter(m => !state.missionsDone.includes(m.id));
+}
+
+function getMissingServerIds() {
+  const missing = new Set();
+  getPendingMissions().forEach(m => {
+    m.needs.forEach(id => { if (!state.owned.includes(id)) missing.add(id); });
+  });
+  return [...missing];
+}
+
+function canAffordAnyNeededServer() {
+  return getMissingServerIds().some(id => {
+    const s = SERVERS.find(x => x.id === id);
+    return s && state.budget >= s.cost;
+  });
+}
+
+function isStuckWithoutCoins() {
+  if (isGameEnded() || allMissionsComplete()) return false;
+  const missing = getMissingServerIds();
+  if (missing.length === 0) return false;
+  return !canAffordAnyNeededServer();
+}
+
+function checkGameOver() {
+  if (isStuckWithoutCoins()) endGameLoss();
+}
+
+function endGameLoss() {
+  if (isGameEnded()) return;
+  state.gameEndReason = 'loss';
+  state.completedAt = Date.now();
+  renderEndScreen('loss');
+  showScreen('s-victory');
+}
+
+function renderMissionSummaryHtml() {
+  return '<ul class="mission-summary">' + MISSIONS.map(m => {
+    const done = state.missionsDone.includes(m.id);
+    return `<li class="mission-summary-item ${done ? 'mission-summary-done' : 'mission-summary-pending'}">
+      <span class="mission-summary-mark">${done ? 'CLEAR' : '—'}</span>
+      <span>${m.icon} ${escapeHtml(m.title)}</span>
+    </li>`;
+  }).join('') + '</ul>';
+}
+
+function toast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2200);
+}
+
+function updateHUD() {
+  document.getElementById('hud-xp').textContent  = 'SCORE ' + state.xp;
+  document.getElementById('hud-mis').textContent = 'STAGE ' + state.missionsDone.length + '/' + MISSIONS.length;
+  const hubTitle = document.querySelector('#s-hub .header h2');
+  if (hubTitle && state.playerName) hubTitle.textContent = state.playerName.toUpperCase();
+}
+
+function switchTab(tab) {
+  state.activeTab = tab;
+  ['shop','network','missions'].forEach(t => {
+    document.getElementById('tab-'+t).hidden = t !== tab;
+  });
+  document.querySelectorAll('.tab-btn').forEach((b,i) => {
+    b.classList.toggle('active', ['shop','network','missions'][i] === tab);
+  });
+  if(tab==='shop')     renderShop();
+  if(tab==='network')  renderNetwork();
+  if(tab==='missions') renderMissions();
+  checkGameOver();
+}
+
+function renderAll() { updateHUD(); renderShop(); }
+
+function renderShop() {
+  const cats = [...new Set(SERVERS.map(s => s.cat))];
+  let html = `<div class="budget-bar"><span class="budget-label">💰 COINS</span><span class="budget-amount">${state.budget.toLocaleString()}</span></div>`;
+  cats.forEach(cat => {
+    html += `<p class="cat-label">${cat}</p><div class="shop-grid">`;
+    SERVERS.filter(s => s.cat === cat).forEach(s => {
+      const owned = state.owned.includes(s.id);
+      html += `<div class="server-card ${owned?'owned':''}" onclick="buyServer('${s.id}')">
+        <div class="server-icon">${s.icon}</div>
+        <div class="server-name">${s.name}</div>
+        <div class="server-cat">${s.cat}</div>
+        <div class="server-cost">${owned ? 'OWNED' : s.cost + ' C'}</div>
+        <div class="server-desc">${s.desc}</div>
+      </div>`;
+    });
+    html += '</div>';
+  });
+  document.getElementById('tab-shop').innerHTML = html;
+  checkGameOver();
+}
+
+function buyServer(id) {
+  if (isGameEnded()) return;
+  if(state.owned.includes(id)) { toast('Ya tenés este servidor'); return; }
+  const s = SERVERS.find(x => x.id === id);
+  if(state.budget < s.cost) {
+    toast('NO COINS!');
+    checkGameOver();
+    return;
+  }
+  state.budget -= s.cost;
+  state.owned.push(id);
+  state.xp += 30;
+  toast(s.icon + ' ' + s.name + ' instalado!');
+  updateHUD();
+  renderShop();
+  if(state.activeTab === 'network')  renderNetwork();
+  if(state.activeTab === 'missions') renderMissions();
+  checkGameOver();
+}
+
+function renderNetwork() {
+  const cols = 4, spacingX = 110, spacingY = 100, startX = 30, startY = 60;
+  const W = 530, H = Math.ceil(SERVERS.length / cols) * spacingY + 120;
+  let svg = `<svg class="net-canvas" viewBox="0 0 ${W} ${H}" role="img" xmlns="http://www.w3.org/2000/svg">
+    <title>Red de servidores de TechCorp</title>
+    <defs><marker id="a2" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+      <path d="M2 1L8 5L2 9" fill="none" stroke="#00f5ff" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+    </marker></defs>`;
+
+  const cx = W / 2, cy = H - 44;
+  svg += `<rect x="${cx-54}" y="${cy-18}" width="108" height="36" rx="2" fill="#12121f" stroke="#ff00aa" stroke-width="2"/>
+    <text x="${cx}" y="${cy+5}" text-anchor="middle" font-size="9" fill="#ffe600" font-family="monospace" font-weight="bold">🔀 SWITCH</text>`;
+
+  SERVERS.forEach((s, i) => {
+    const col = i % cols, row = Math.floor(i / cols);
+    const nx = startX + col * spacingX + (row % 2 === 1 ? spacingX / 2 : 0);
+    const ny = startY + row * spacingY;
+    const on = state.owned.includes(s.id);
+    svg += `<line x1="${nx+32}" y1="${ny+55}" x2="${cx}" y2="${cy-18}" stroke="${on?'#39ff14':'#3d3d6b'}" stroke-width="${on?2:1}" stroke-dasharray="${on?'none':'4 3'}"/>`;
+    svg += `<g style="cursor:pointer;opacity:${on?1:0.4}" onclick="buyServer('${s.id}')">
+      <rect x="${nx}" y="${ny}" width="65" height="58" rx="2" fill="#12121f" stroke="${on?'#39ff14':'#3d3d6b'}" stroke-width="${on?3:2}"/>
+      <text x="${nx+32}" y="${ny+22}" text-anchor="middle" font-size="18">${s.icon}</text>
+      <text x="${nx+32}" y="${ny+40}" text-anchor="middle" font-size="8" fill="${on?'#00f5ff':'#7a7a9a'}" font-family="monospace" font-weight="bold">${s.name.replace('Server','Srv').replace(' / NVR','').replace('(LDAP/AD)','').trim().substring(0,14)}</text>
+      <text x="${nx+32}" y="${ny+52}" text-anchor="middle" font-size="7" fill="${on?'#39ff14':'#ff6b00'}" font-family="monospace" font-weight="bold">${on?'ONLINE':'OFF'}</text>
+    </g>`;
+  });
+  svg += '</svg>';
+  document.getElementById('tab-network').innerHTML = `<p class="net-hint">▶ Tocá un nodo OFF para comprarlo. Los ONLINE forman tu red.</p><div class="net-wrap">${svg}</div>`;
+}
+
+function renderMissions() {
+  let html = '<div class="mission-list">';
+  MISSIONS.forEach(m => {
+    const done    = state.missionsDone.includes(m.id);
+    const hasAll  = m.needs.every(n => state.owned.includes(n));
+    const locked  = !hasAll && !done;
+    const available = hasAll && !done;
+    const onclick = locked || done ? '' : `onclick="startMission('${m.id}')"`;
+    const reqList = m.needs.map(n => {
+      const s = SERVERS.find(x => x.id === n);
+      return s ? s.icon + ' ' + s.name : n;
+    }).join(' · ');
+    html += `<div class="mission-card ${done?'done':locked?'locked':''}" ${onclick}>
+      <div class="mission-title">
+        <span>${m.icon} ${m.title}</span>
+        <span class="badge ${done?'badge-done':locked?'badge-lock':'badge-open'}">${done?'CLEAR':locked?'LOCKED':'PLAY'}</span>
+        <span class="badge badge-xp">+${m.xp} XP</span>
+      </div>
+      ${available ? `<div class="mission-req">SERVIDORES: ${reqList}</div>` : ''}
+    </div>`;
+  });
+  html += '</div>';
+  document.getElementById('tab-missions').innerHTML = html;
+}
+
+function startMission(id) {
+  if (isGameEnded()) return;
+  currentMission = MISSIONS.find(m => m.id === id);
+  currentStep = 0;
+  stepAnswered = false;
+  document.getElementById('puzzle-title').textContent = currentMission.icon + ' ' + currentMission.title;
+  renderStep();
+  showScreen('s-puzzle');
+}
+
+function renderStep() {
+  const step  = currentMission.steps[currentStep];
+  const total = currentMission.steps.length;
+  let html = `<div class="puzzle-step">STAGE ${currentStep+1} / ${total}</div>`;
+  html += `<div class="puzzle-scenario"><strong>BOSS:</strong> ${currentMission.title}</div>`;
+  html += `<div class="puzzle-question">${step.q}</div>`;
+  html += '<div class="options-grid">';
+  step.opts.forEach((o, i) => {
+    html += `<button class="option-btn" id="opt-${i}" onclick="answerStep(${i})">${o}</button>`;
+  });
+  html += '</div><div id="feedback"></div>';
+  document.getElementById('puzzle-body').innerHTML = html;
+}
+
+function answerStep(chosen) {
+  if(stepAnswered) return;
+  stepAnswered = true;
+  const step    = currentMission.steps[currentStep];
+  const correct = chosen === step.ans;
+  document.querySelectorAll('.option-btn').forEach((b, i) => {
+    b.disabled = true;
+    if(i === step.ans)               b.classList.add('correct');
+    else if(i === chosen && !correct) b.classList.add('wrong');
+  });
+  if(correct) state.xp += Math.floor(currentMission.xp / currentMission.steps.length);
+  const isLast = currentStep === currentMission.steps.length - 1;
+  document.getElementById('feedback').innerHTML = `
+    <div class="feedback-box ${correct?'feedback-ok':'feedback-err'}">
+      <strong>${correct ? '▶ PERFECT!' : '▶ GAME OVER'}</strong> — ${step.exp}
+    </div>
+    <button class="btn-primary" onclick="${isLast ? 'finishMission()' : 'nextStep()'}">${isLast ? 'STAGE CLEAR ✓' : 'NEXT →'}</button>`;
+}
+
+function nextStep() { currentStep++; stepAnswered = false; renderStep(); }
+
+function finishMission() {
+  if(!state.missionsDone.includes(currentMission.id)) {
+    state.missionsDone.push(currentMission.id);
+    state.xp += 20;
+  }
+  updateHUD();
+  if (allMissionsComplete()) {
+    state.gameEndReason = 'win';
+    state.completedAt = Date.now();
+    renderEndScreen('win');
+    showScreen('s-victory');
+    return;
+  }
+  showScreen('s-hub');
+  switchTab('missions');
+  toast('STAGE CLEAR! +' + currentMission.xp + ' XP');
+}
+
+function renderEndScreen(type) {
+  const elapsed = formatElapsed(getElapsedMs());
+  const name = escapeHtml(state.playerName);
+  const doneCount = state.missionsDone.length;
+  const summary = renderMissionSummaryHtml();
+
+  if (type === 'win') {
+  document.getElementById('victory-content').innerHTML = `
+    <div class="victory-wrap victory-win">
+    <div class="victory-icon">🏆</div>
+    <h2 class="victory-title">¡FELICIDADES,<br>${name}!</h2>
+    <p class="victory-lead">Completaste las 6 misiones. <strong>¡Felicitaciones, eres todo un SysAdmin!</strong></p>
+    <p class="victory-def">${SYSADMIN_DEF}</p>
+    <div class="victory-stats">
+      <div class="victory-stat"><span class="victory-stat-label">TIEMPO</span><span class="victory-stat-value">${elapsed}</span></div>
+      <div class="victory-stat"><span class="victory-stat-label">SCORE</span><span class="victory-stat-value">${state.xp}</span></div>
+    </div>
+    <p class="diploma-brand victory-brand">${DIPLOMA_BRAND}</p>
+    <div class="victory-actions">
+      <button class="btn-primary" onclick="downloadCertificate()"><i class="ti ti-download"></i> DESCARGAR CERTIFICADO</button>
+      <button class="btn-secondary" onclick="showScreen('s-hub');switchTab('missions')">VOLVER AL HUB</button>
+    </div>
+    <p class="end-missions-head">MISIONES: ${doneCount}/${MISSIONS.length}</p>
+    ${summary}
+    <p class="cert-hint">Se generará una imagen PNG con tu nombre y tiempo.</p>
+    </div>`;
+    return;
+  }
+
+  const cheapest = getMissingServerIds()
+    .map(id => SERVERS.find(s => s.id === id))
+    .filter(Boolean)
+    .sort((a, b) => a.cost - b.cost)[0];
+
+  document.getElementById('victory-content').innerHTML = `
+    <div class="victory-wrap victory-loss">
+      <div class="victory-icon victory-icon-loss">💸</div>
+      <h2 class="victory-title victory-title-loss">GAME OVER</h2>
+      <p class="victory-lead">${name}, te quedaste <strong>sin monedas</strong> para comprar los servidores que faltan.</p>
+      ${cheapest ? `<p class="victory-hint-loss">El más barato que necesitabas: ${cheapest.icon} ${escapeHtml(cheapest.name)} (${cheapest.cost} C). Tenías ${state.budget} C.</p>` : ''}
+      <p class="end-missions-head">MISIONES COMPLETADAS: ${doneCount}/${MISSIONS.length}</p>
+      ${summary}
+      <div class="victory-stats">
+        <div class="victory-stat"><span class="victory-stat-label">TIEMPO</span><span class="victory-stat-value">${elapsed}</span></div>
+        <div class="victory-stat"><span class="victory-stat-label">SCORE</span><span class="victory-stat-value">${state.xp}</span></div>
+      </div>
+      <p class="diploma-brand victory-brand">${DIPLOMA_BRAND}</p>
+      <div class="victory-actions">
+        <button class="btn-primary" onclick="resetGame()"><i class="ti ti-refresh"></i> REINTENTAR</button>
+      </div>
+    </div>`;
+}
+
+function resetGame() {
+  const name = state.playerName;
+  state.budget = 8000;
+  state.owned = [];
+  state.xp = 0;
+  state.missionsDone = [];
+  state.completedAt = null;
+  state.gameEndReason = null;
+  state.startTime = Date.now();
+  state.playerName = name;
+  showScreen('s-hub');
+  renderAll();
+  switchTab('shop');
+  toast('NUEVA PARTIDA!');
+}
+
+function escapeHtml(str) {
+  return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function wrapCanvasText(ctx, text, x, y, maxWidth, lineHeight) {
+  const words = text.split(' ');
+  let line = '';
+  let cy = y;
+  for (let i = 0; i < words.length; i++) {
+    const test = line + words[i] + ' ';
+    if (ctx.measureText(test).width > maxWidth && line) {
+      ctx.fillText(line.trim(), x, cy);
+      line = words[i] + ' ';
+      cy += lineHeight;
+    } else {
+      line = test;
+    }
+  }
+  if (line) ctx.fillText(line.trim(), x, cy);
+  return cy + lineHeight;
+}
+
+async function drawCertificate() {
+  const canvas = document.getElementById('cert-canvas');
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height;
+  const elapsed = formatElapsed(getElapsedMs());
+  const name = state.playerName;
+  const dateStr = new Date(state.completedAt || Date.now()).toLocaleDateString('es-AR', { day:'numeric', month:'long', year:'numeric' });
+
+  await document.fonts.load('16px "Press Start 2P"');
+  await document.fonts.load('24px VT323');
+
+  const bg = ctx.createLinearGradient(0, 0, 0, H);
+  bg.addColorStop(0, '#0d0d1a');
+  bg.addColorStop(1, '#0a0a12');
+  ctx.fillStyle = bg;
+  ctx.fillRect(0, 0, W, H);
+
+  ctx.strokeStyle = '#ff00aa';
+  ctx.lineWidth = 8;
+  ctx.strokeRect(24, 24, W - 48, H - 48);
+  ctx.strokeStyle = '#00f5ff';
+  ctx.lineWidth = 3;
+  ctx.strokeRect(40, 40, W - 80, H - 80);
+
+  ctx.textAlign = 'center';
+  ctx.fillStyle = '#ffe600';
+  ctx.font = '22px "Press Start 2P", monospace';
+  ctx.fillText('TECHCORP INFRA ARCADE', W / 2, 100);
+  ctx.fillStyle = '#00f5ff';
+  ctx.font = '14px "Press Start 2P", monospace';
+  ctx.fillText('CERTIFICADO SYSADMIN', W / 2, 150);
+
+  ctx.fillStyle = '#39ff14';
+  ctx.font = '28px "Press Start 2P", monospace';
+  const nameLines = name.length > 18 ? [name.slice(0, 18), name.slice(18)] : [name];
+  nameLines.forEach((part, i) => ctx.fillText(part.toUpperCase(), W / 2, 220 + i * 40));
+
+  ctx.fillStyle = '#e8e8ff';
+  ctx.font = '32px VT323, monospace';
+  ctx.fillText('¡Felicitaciones! Eres todo un SysAdmin', W / 2, 300);
+  ctx.fillStyle = '#e8e8ff';
+  ctx.font = '28px VT323, monospace';
+  ctx.fillText('Completó las 6 misiones de infraestructura', W / 2, 335);
+  ctx.fillStyle = '#ff00aa';
+  ctx.font = '36px VT323, monospace';
+  ctx.fillText('Tiempo: ' + elapsed, W / 2, 385);
+  ctx.fillStyle = '#ffe600';
+  ctx.fillText('Score: ' + state.xp + ' XP', W / 2, 425);
+  ctx.fillStyle = '#7a7a9a';
+  ctx.font = '26px VT323, monospace';
+  ctx.fillText(dateStr, W / 2, 465);
+
+  ctx.textAlign = 'left';
+  ctx.fillStyle = '#e8e8ff';
+  ctx.font = '26px VT323, monospace';
+  let y = wrapCanvasText(ctx, SYSADMIN_DEF, 70, 510, W - 140, 34);
+
+  ctx.textAlign = 'left';
+  ctx.fillStyle = '#00f5ff';
+  ctx.font = '22px VT323, monospace';
+  wrapCanvasText(ctx, DIPLOMA_BRAND, 70, Math.max(y + 30, H - 200), W - 140, 30);
+
+  ctx.fillStyle = '#39ff14';
+  ctx.font = '12px "Press Start 2P", monospace';
+  ctx.fillText('STAGE CLEAR — GAME OVER', W / 2, H - 70);
+
+  return canvas;
+}
+
+async function downloadCertificate() {
+  if (state.gameEndReason !== 'win') return;
+  try {
+    const canvas = await drawCertificate();
+    const link = document.createElement('a');
+    const safeName = state.playerName.replace(/[^\w\s-]/gi, '').trim().replace(/\s+/g, '_') || 'sysadmin';
+    link.download = `certificado_sysadmin_${safeName}.png`;
+    link.href = canvas.toDataURL('image/png');
+    link.click();
+    toast('CERTIFICADO DESCARGADO!');
+  } catch (e) {
+    toast('ERROR AL GENERAR IMAGEN');
+    console.error(e);
+  }
+}
+
+// Build info guide
+(function buildInfo() {
+  const cats = [...new Set(SERVERS.map(s => s.cat))];
+  let html = '';
+  cats.forEach(cat => {
+    html += `<div class="info-section"><p class="cat-label">${cat}</p>`;
+    SERVERS.filter(s => s.cat === cat).forEach(s => {
+      html += `<div class="info-card">
+        <span class="info-card-icon">${s.icon}</span>
+        <div>
+          <p class="info-card-name">${s.name}</p>
+          <p class="info-card-desc">${s.desc}</p>
+        </div>
+      </div>`;
+    });
+    html += '</div>';
+  });
+  document.getElementById('info-content').innerHTML = html;
+})();
+
+document.getElementById('player-name').addEventListener('keydown', e => {
+  if (e.key === 'Enter') startGame();
+});
+</script>
+</body>
+</html>
